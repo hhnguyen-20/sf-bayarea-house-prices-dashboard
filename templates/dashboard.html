@@ -228,7 +228,12 @@
   <script>
     Chart.defaults.color = "rgba(231, 236, 255, .9)";
     Chart.defaults.borderColor = "rgba(255,255,255,.10)";
-    Chart.register(ChartDataLabels);
+    // Make datalabels opt-in per chart (and don't crash if CDN fails).
+    if (window.ChartDataLabels) {
+      Chart.register(window.ChartDataLabels);
+      Chart.defaults.plugins = Chart.defaults.plugins || {};
+      Chart.defaults.plugins.datalabels = { display: false };
+    }
 
     const fmtUsd = (v) => {
       try { return "$" + Math.round(v).toLocaleString("en-US"); } catch { return "$" + v; }
@@ -239,7 +244,7 @@
     const allCityMedian = {{ median_by_city | map(attribute='median_price') | list | tojson }};
     const cityLabels = allCityLabels.slice(0, 15);
     const cityMedian = allCityMedian.slice(0, 15);
-    new Chart(document.getElementById('medianByCityChart'), {
+    try { new Chart(document.getElementById('medianByCityChart'), {
       type: 'bar',
       data: {
         labels: cityLabels,
@@ -271,12 +276,12 @@
           y: { ticks: { autoSkip: false, maxRotation: 0, minRotation: 0, font: { size: 12 } } }
         }
       }
-    });
+    }); } catch (e) { console.error("medianByCityChart failed", e); }
 
     // 2) Price histogram
     const priceBuckets = {{ price_histogram | map(attribute='bucket') | list | tojson }};
     const priceBucketPct = {{ price_histogram | map(attribute='pct') | list | tojson }};
-    new Chart(document.getElementById('priceHistogramChart'), {
+    try { new Chart(document.getElementById('priceHistogramChart'), {
       type: 'doughnut',
       data: {
         labels: priceBuckets,
@@ -301,6 +306,7 @@
             }
           },
           datalabels: {
+            display: true,
             color: "rgba(231, 236, 255, .95)",
             font: { weight: "700", size: 12 },
             formatter: (value) => {
@@ -312,11 +318,11 @@
           }
         }
       }
-    });
+    }); } catch (e) { console.error("priceHistogramChart failed", e); }
 
     // 3) Scatter price vs home size
     const scatterPts = {{ scatter_price_vs_size | tojson }};
-    new Chart(document.getElementById('scatterPriceSizeChart'), {
+    try { new Chart(document.getElementById('scatterPriceSizeChart'), {
       type: 'scatter',
       data: {
         datasets: [{
@@ -336,11 +342,11 @@
           y: { title: { display: true, text: 'Price' }, ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } }
         }
       }
-    });
+    }); } catch (e) { console.error("scatterPriceSizeChart failed", e); }
 
     // 4) Price by beds (avg + median)
     const bedsRows = {{ avg_price_by_beds | tojson }};
-    new Chart(document.getElementById('priceByBedsChart'), {
+    try { new Chart(document.getElementById('priceByBedsChart'), {
       data: {
         labels: bedsRows.map(r => String(r.beds)),
         datasets: [
@@ -356,7 +362,7 @@
           y: { ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } }
         }
       }
-    });
+    }); } catch (e) { console.error("priceByBedsChart failed", e); }
 
     // 5) Leaflet map (avg price by ZIP)
     const zipRows = {{ zip_map | tojson }};
