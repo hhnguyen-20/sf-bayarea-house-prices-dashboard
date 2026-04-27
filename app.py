@@ -194,7 +194,6 @@ def create_app():
               AND latitude IS NOT NULL
               AND longitude IS NOT NULL
             GROUP BY zip
-            HAVING COUNT(*) >= 10
             ORDER BY n DESC
             LIMIT 250;
             """,
