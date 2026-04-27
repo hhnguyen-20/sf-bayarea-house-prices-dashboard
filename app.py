@@ -46,6 +46,28 @@ def _where_clause(filters):
 def create_app():
     app = Flask(__name__)
 
+    @app.get("/health")
+    def health():
+        try:
+            n = query("SELECT COUNT(*)::int AS n FROM listings;")[0]["n"]
+            return {"ok": True, "listings": n}
+        except Exception as e:
+            # Keep response safe (no secrets), but actionable.
+            return {"ok": False, "error": str(e)}, 500
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(e):
+        # Vercel often shows a generic 500; make it obvious what to fix.
+        msg = str(e)
+        print("Unhandled exception:", msg)
+        return (
+            render_template(
+                "error.html",
+                error=msg,
+            ),
+            500,
+        )
+
     @app.route("/")
     def index():
         filters = _filters_from_request(request)

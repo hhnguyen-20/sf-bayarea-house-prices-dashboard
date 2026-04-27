@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard error</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; padding: 28px; }
+    .box { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    pre { background: #0b1020; color: #e7ecff; padding: 14px; border-radius: 10px; overflow: auto; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    ul { line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Internal Server Error</h1>
+    <p>This app failed while connecting to the database or running queries.</p>
+    <pre><code>{{ error }}</code></pre>
+    <h2>Common fixes</h2>
+    <ul>
+      <li>Ensure a Postgres connection string is set (recommended: <code>SUPABASE_DB_URL</code> or <code>DATABASE_URL</code>).</li>
+      <li>Run <code>sql/schema.sql</code> to create the <code>listings</code> table.</li>
+      <li>Seed data by running <code>python3 scripts/seed_postgres.py</code> (pointing at the same database).</li>
+      <li>Check <code>/health</code> for a JSON diagnostic.</li>
+    </ul>
+  </div>
+</body>
+</html>
+

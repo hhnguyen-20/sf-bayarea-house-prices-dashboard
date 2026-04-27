@@ -6,7 +6,9 @@ import psycopg
 
 def postgres_url() -> str:
     return (
-        os.environ.get("POSTGRES_URL_NON_POOLING")
+        os.environ.get("SUPABASE_DB_URL")
+        or os.environ.get("SUPABASE_DATABASE_URL")
+        or os.environ.get("POSTGRES_URL_NON_POOLING")
         or os.environ.get("POSTGRES_URL")
         or os.environ.get("DATABASE_URL")
         or ""

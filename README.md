@@ -1,9 +1,9 @@
-# SF Bay Area House Prices Dashboard (Vercel + Postgres)
+# SF Bay Area House Prices Dashboard (Vercel + Supabase)
 
 Flask dashboard built on the SF Bay Area house prices dataset:
 
 - Dataset: `data/sf_bayarea_house_prices.csv` (source: `https://raw.githubusercontent.com/csbfx/cs133/main/sf_bayarea_house_prices.csv`)
-- Database: **Vercel Postgres** (no MySQL)
+- Database: **Supabase Postgres** (via Vercel + Supabase integration)
 - Visualizations: **5+** charts (city medians, price distribution, scatter plots, bedroom pricing, ZIP-level map)
 
 ## Local setup
@@ -16,12 +16,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2) Set `POSTGRES_URL_NON_POOLING`
+### 2) Set a database connection string
 
 This app reads one of:
 
-- `POSTGRES_URL_NON_POOLING` (preferred)
-- `POSTGRES_URL`
+- `SUPABASE_DB_URL` (recommended)
+- `SUPABASE_DATABASE_URL`
 - `DATABASE_URL`
 
 ### 3) Create schema + seed data
@@ -42,12 +42,12 @@ python3 app.py
 
 Open `http://localhost:5001`.
 
-## Deploy to Vercel (with Vercel Postgres)
+## Deploy to Vercel (with Supabase)
 
 1. Create a Vercel project from this repo.
-2. In Vercel, add **Storage → Postgres** (Vercel Postgres).
-3. Ensure env vars are present (Vercel sets them automatically for Postgres).
-4. Run `sql/schema.sql` on the Vercel Postgres database.
-5. Seed the database using the Vercel-provided connection string (set `POSTGRES_URL_NON_POOLING` locally and run `python3 scripts/seed_postgres.py`).
+2. Connect the project to Supabase (Vercel integration or by setting env vars).
+3. Ensure your connection string is present as `SUPABASE_DB_URL` (or `DATABASE_URL`).
+4. Run `sql/schema.sql` on the Supabase database.
+5. Seed using that same connection string and run `python3 scripts/seed_postgres.py`.
 
 The serverless entrypoint is `api/index.py` and routing is configured in `vercel.json`.
