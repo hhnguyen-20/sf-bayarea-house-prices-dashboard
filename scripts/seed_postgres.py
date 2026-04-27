@@ -1,7 +1,22 @@
 import csv
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg
+
+
+def _sanitize_postgres_url(url: str) -> str:
+    """
+    Some Supabase pooler URLs include extra query params like `supa=...` which
+    psycopg doesn't accept. Strip unknown params while keeping important ones
+    (e.g. sslmode).
+    """
+    try:
+        parts = urlsplit(url)
+        q = [(k, v) for (k, v) in parse_qsl(parts.query, keep_blank_values=True) if k.lower() != "supa"]
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
+    except Exception:
+        return url
 
 
 def postgres_url() -> str:
@@ -16,16 +31,28 @@ def postgres_url() -> str:
 
 
 def main():
-    url = postgres_url()
+    url = _sanitize_postgres_url(postgres_url())
     if not url:
         raise SystemExit(
-            "Missing POSTGRES_URL(_NON_POOLING) / DATABASE_URL. "
-            "If you're using Vercel Postgres, set POSTGRES_URL_NON_POOLING."
+            "Missing database connection string. Set SUPABASE_DB_URL (recommended) "
+            "or DATABASE_URL."
         )
 
-    csv_path = os.environ.get("CSV_PATH", "data/sf_bayarea_house_prices.csv")
-    if not os.path.exists(csv_path):
-        raise SystemExit(f"CSV not found: {csv_path}")
+    csv_path = os.environ.get("CSV_PATH", "").strip()
+    candidates = [
+        csv_path if csv_path else None,
+        "data/cleaned_sf_bayarea_house_prices.csv",
+        "data/sf_bayarea_house_prices.csv",
+        "sf_bayarea_house_prices.csv",
+    ]
+    csv_path = next((p for p in candidates if p and os.path.exists(p)), None)
+    if not csv_path:
+        raise SystemExit(
+            "CSV not found. Set CSV_PATH or place the dataset at one of:\n"
+            "- data/cleaned_sf_bayarea_house_prices.csv\n"
+            "- data/sf_bayarea_house_prices.csv\n"
+            "- sf_bayarea_house_prices.csv"
+        )
 
     sslmode = os.environ.get("PGSSLMODE") or ("disable" if ("localhost" in url or "127.0.0.1" in url) else "require")
     with psycopg.connect(url, sslmode=sslmode) as conn:

@@ -1,7 +1,18 @@
 import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg
 from psycopg.rows import dict_row
+
+
+def _sanitize_postgres_url(url: str) -> str:
+    # Supabase pooler URLs sometimes include `supa=...` which psycopg rejects.
+    try:
+        parts = urlsplit(url)
+        q = [(k, v) for (k, v) in parse_qsl(parts.query, keep_blank_values=True) if k.lower() != "supa"]
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
+    except Exception:
+        return url
 
 
 def _postgres_url() -> str:
@@ -27,7 +38,7 @@ def _postgres_url() -> str:
 
 
 def get_connection():
-    url = _postgres_url()
+    url = _sanitize_postgres_url(_postgres_url())
     if not url:
         raise RuntimeError(
             "Missing Postgres connection string. Set SUPABASE_DB_URL (Supabase), "
