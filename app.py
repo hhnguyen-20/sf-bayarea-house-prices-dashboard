@@ -1,101 +1,202 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
+
 from db import query
 
-app = Flask(__name__)
 
-@app.route("/")
-def index():
-    # 1. Movies by Genre (top 30 with percentage)
-    sql_genre_count = """
-        WITH Counts AS (
-            SELECT genre AS category, COUNT(*) AS total_count
-            FROM Genres
-            GROUP BY genre
-        ),
-        Total AS (
-            SELECT SUM(total_count) AS grand_total FROM Counts
-        ),
-        TopCounts AS (
-            SELECT * FROM Counts ORDER BY total_count DESC LIMIT 30
+def _filters_from_request(req):
+    city = (req.args.get("city") or "").strip()
+    min_price = req.args.get("min_price") or ""
+    max_price = req.args.get("max_price") or ""
+    beds = req.args.get("beds") or ""
+
+    def _to_int(v):
+        try:
+            return int(v)
+        except Exception:
+            return None
+
+    return {
+        "city": city or None,
+        "min_price": _to_int(min_price),
+        "max_price": _to_int(max_price),
+        "beds": _to_int(beds),
+    }
+
+
+def _where_clause(filters):
+    where = ["1=1"]
+    params = []
+
+    if filters["city"]:
+        where.append("city = %s")
+        params.append(filters["city"])
+    if filters["min_price"] is not None:
+        where.append("price >= %s")
+        params.append(filters["min_price"])
+    if filters["max_price"] is not None:
+        where.append("price <= %s")
+        params.append(filters["max_price"])
+    if filters["beds"] is not None:
+        where.append("beds = %s")
+        params.append(filters["beds"])
+
+    return " AND ".join(where), params
+
+
+def create_app():
+    app = Flask(__name__)
+
+    @app.route("/")
+    def index():
+        filters = _filters_from_request(request)
+        where, params = _where_clause(filters)
+
+        cities = query(
+            """
+            SELECT city, COUNT(*) AS n
+            FROM listings
+            WHERE city IS NOT NULL
+            GROUP BY city
+            ORDER BY n DESC, city ASC;
+            """
         )
-        SELECT c.category, c.total_count, ROUND((c.total_count / t.grand_total) * 100, 2) AS percentage
-        FROM TopCounts c, Total t;
-    """
-    data_genre_count = query(sql_genre_count)
 
-    # 2. Movies Per Year (with cumulative)
-    sql_movies_year = """
-        WITH YearlyCounts AS (
-            SELECT startYear AS year, COUNT(*) AS total_count
-            FROM Movies
-            WHERE startYear IS NOT NULL AND startYear >= 2000
-            GROUP BY startYear
-            ORDER BY startYear
+        summary = query(
+            f"""
+            SELECT
+              COUNT(*)::int AS n_listings,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median_price,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY home_size) AS median_home_size
+            FROM listings
+            WHERE {where};
+            """,
+            params,
+        )[0]
+
+        median_by_city = query(
+            f"""
+            SELECT
+              city,
+              COUNT(*)::int AS n,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median_price
+            FROM listings
+            WHERE {where} AND city IS NOT NULL AND price IS NOT NULL
+            GROUP BY city
+            HAVING COUNT(*) >= 20
+            ORDER BY median_price DESC
+            LIMIT 15;
+            """,
+            params,
         )
-        SELECT 
-            year, 
-            total_count,
-            SUM(total_count) OVER (ORDER BY year) AS cumulative
-        FROM YearlyCounts;
-    """
-    data_movies_year = query(sql_movies_year)
 
-    # 3. Top 10 Highest-Rated Movies (with >=500k votes)
-    sql_top_rated = """
-        SELECT m.primaryTitle AS title, r.averageRating AS rating
-        FROM Movies m
-        JOIN Ratings r ON m.movieID = r.movieID
-        WHERE r.numVotes >= 500000
-        ORDER BY r.averageRating DESC
-        LIMIT 10;
-    """
-    data_top_rated = query(sql_top_rated)
-
-    # 4. Distribution of Movie Ratings (pie chart)
-    sql_rating_dist = """
-        WITH Buckets AS (
-            SELECT 
-                CASE 
-                    WHEN averageRating <= 2 THEN '0-2'
-                    WHEN averageRating <= 4 THEN '2-4'
-                    WHEN averageRating <= 6 THEN '4-6'
-                    WHEN averageRating <= 8 THEN '6-8'
-                    ELSE '8-10'
+        price_histogram = query(
+            f"""
+            WITH Buckets AS (
+              SELECT
+                CASE
+                  WHEN price < 750000 THEN '< $750k'
+                  WHEN price < 1000000 THEN '$750k–$1.0M'
+                  WHEN price < 1500000 THEN '$1.0M–$1.5M'
+                  WHEN price < 2000000 THEN '$1.5M–$2.0M'
+                  WHEN price < 3000000 THEN '$2.0M–$3.0M'
+                  ELSE '$3.0M+'
                 END AS bucket,
-                COUNT(*) AS count
-            FROM Ratings
-            GROUP BY bucket
-        ),
-        Total AS (
-            SELECT SUM(count) AS grand_total FROM Buckets
+                COUNT(*)::int AS n
+              FROM listings
+              WHERE {where} AND price IS NOT NULL
+              GROUP BY 1
+            ),
+            Total AS (
+              SELECT SUM(n)::float AS total FROM Buckets
+            )
+            SELECT bucket, n, ROUND((n / NULLIF(t.total, 0)) * 100, 2) AS pct
+            FROM Buckets b CROSS JOIN Total t
+            ORDER BY
+              CASE bucket
+                WHEN '< $750k' THEN 1
+                WHEN '$750k–$1.0M' THEN 2
+                WHEN '$1.0M–$1.5M' THEN 3
+                WHEN '$1.5M–$2.0M' THEN 4
+                WHEN '$2.0M–$3.0M' THEN 5
+                ELSE 6
+              END;
+            """,
+            params,
         )
-        SELECT b.bucket, b.count, ROUND((b.count / t.grand_total) * 100, 2) AS percentage
-        FROM Buckets b, Total t
-        ORDER BY bucket;
-    """
-    data_rating_dist = query(sql_rating_dist)
 
-    # 5. Top 10 Directors by Avg Rating (min 10 movies)
-    sql_top_directors = """
-        SELECT n.primaryName AS name, ROUND(AVG(r.averageRating), 2) AS avg_rating
-        FROM Directors d
-        JOIN Names n ON d.nameID = n.nameID
-        JOIN Ratings r ON d.movieID = r.movieID
-        GROUP BY n.primaryName
-        HAVING COUNT(*) >= 10
-        ORDER BY avg_rating DESC
-        LIMIT 10;
-    """
-    data_top_directors = query(sql_top_directors)
+        scatter_price_vs_size = query(
+            f"""
+            SELECT
+              price,
+              home_size,
+              beds,
+              baths,
+              city
+            FROM listings
+            WHERE {where}
+              AND price IS NOT NULL
+              AND home_size IS NOT NULL
+            ORDER BY random()
+            LIMIT 600;
+            """,
+            params,
+        )
 
-    return render_template(
-        "dashboard.html",
-        data_genre_count=data_genre_count,
-        data_movies_year=data_movies_year,
-        data_top_rated=data_top_rated,
-        data_rating_dist=data_rating_dist,
-        data_top_directors=data_top_directors
-    )
+        avg_price_by_beds = query(
+            f"""
+            SELECT
+              beds,
+              COUNT(*)::int AS n,
+              ROUND(AVG(price))::int AS avg_price,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median_price
+            FROM listings
+            WHERE {where} AND beds IS NOT NULL AND price IS NOT NULL
+            GROUP BY beds
+            HAVING beds BETWEEN 0 AND 10
+            ORDER BY beds ASC;
+            """,
+            params,
+        )
+
+        zip_map = query(
+            f"""
+            SELECT
+              zip,
+              COUNT(*)::int AS n,
+              ROUND(AVG(price))::int AS avg_price,
+              AVG(latitude) AS lat,
+              AVG(longitude) AS lng
+            FROM listings
+            WHERE {where}
+              AND zip IS NOT NULL
+              AND price IS NOT NULL
+              AND latitude IS NOT NULL
+              AND longitude IS NOT NULL
+            GROUP BY zip
+            HAVING COUNT(*) >= 10
+            ORDER BY n DESC
+            LIMIT 250;
+            """,
+            params,
+        )
+
+        return render_template(
+            "dashboard.html",
+            cities=cities,
+            filters=filters,
+            summary=summary,
+            median_by_city=median_by_city,
+            price_histogram=price_histogram,
+            scatter_price_vs_size=scatter_price_vs_size,
+            avg_price_by_beds=avg_price_by_beds,
+            zip_map=zip_map,
+        )
+
+    return app
+
+
+app = create_app()
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

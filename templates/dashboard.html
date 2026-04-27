@@ -2,167 +2,347 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Movies Dashboard</title>
+  <title>SF Bay Area House Prices Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
   <style>
-    body { font-family: Arial; }
-    canvas { max-width: 600px; height: 300px; }
-    .section { display: flex; align-items: flex-start; margin-bottom: 40px; }
-    .section > div { flex: 1; margin-right: 20px; }
-    .section .table-container { max-width: 400px; overflow-x: auto; }
-    .section .chart-container { flex: 2; }
+    :root {
+      --bg: #0b1020;
+      --panel: #121a33;
+      --panel2: #0f1730;
+      --text: #e7ecff;
+      --muted: #a8b2d1;
+      --accent: #7aa2ff;
+      --border: rgba(255,255,255,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(900px 600px at 20% 0%, rgba(122,162,255,.18), transparent 60%),
+                  radial-gradient(700px 500px at 80% 10%, rgba(99,221,190,.12), transparent 55%),
+                  var(--bg);
+      color: var(--text);
+    }
+    a { color: var(--accent); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 18px 60px; }
+    .header { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+    h1 { font-size: 22px; margin: 0; letter-spacing: .2px; }
+    .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 18px; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 14px 12px;
+    }
+    .kpi-label { color: var(--muted); font-size: 12px; }
+    .kpi-value { font-size: 20px; font-weight: 700; margin-top: 6px; }
+    .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .panel h2 { font-size: 14px; margin: 0 0 10px; color: #dbe3ff; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-5 { grid-column: span 5; }
+    .span-12 { grid-column: span 12; }
+    canvas { width: 100%; height: 320px; }
+    #map { width: 100%; height: 420px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 8px 8px; border-bottom: 1px solid rgba(255,255,255,.06); text-align: left; }
+    th { color: var(--muted); font-weight: 600; }
+    .filters {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: end; justify-content: flex-end;
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    select, input {
+      background: var(--panel2);
+      border: 1px solid rgba(255,255,255,.10);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      min-width: 150px;
+      outline: none;
+    }
+    .btn {
+      background: rgba(122,162,255,.18);
+      border: 1px solid rgba(122,162,255,.35);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn.secondary {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 38px;
+    }
+    .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+    @media (max-width: 960px) {
+      .span-6, .span-7, .span-5 { grid-column: span 12; }
+      .cards { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <h1>Movies Dashboard from 2022 to 2024</h1>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>SF Bay Area House Prices Dashboard</h1>
+        <div class="sub">Backed by Vercel Postgres • Dataset: `sf_bayarea_house_prices.csv`</div>
+      </div>
+      <form class="filters" method="get" action="/">
+        <div>
+          <label for="city">City</label>
+          <select id="city" name="city">
+            <option value="">All</option>
+            {% for c in cities %}
+              <option value="{{ c.city }}" {% if filters.city == c.city %}selected{% endif %}>
+                {{ c.city }} ({{ c.n }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="beds">Beds</label>
+          <select id="beds" name="beds">
+            <option value="">Any</option>
+            {% for b in range(0, 8) %}
+              <option value="{{ b }}" {% if filters.beds == b %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="min_price">Min price</label>
+          <input id="min_price" name="min_price" inputmode="numeric" placeholder="e.g. 800000" value="{{ filters.min_price or '' }}" />
+        </div>
+        <div>
+          <label for="max_price">Max price</label>
+          <input id="max_price" name="max_price" inputmode="numeric" placeholder="e.g. 2500000" value="{{ filters.max_price or '' }}" />
+        </div>
+        <button class="btn" type="submit">Apply</button>
+        <a class="btn secondary" href="/">Reset</a>
+      </form>
+    </div>
 
-  <h2>1. Movies by Genre (Top 30)</h2>
-  <div class="section">
-    <div class="table-container">
-      <table border="1" cellpadding="5">
-        <tr><th>Genre</th><th>Count</th><th>Percentage</th></tr>
-        {% for row in data_genre_count %}
-        <tr><td>{{ row.category }}</td><td>{{ row.total_count }}</td><td>{{ row.percentage }}</td></tr>
-        {% else %}
-        <tr><td colspan="3">No data.</td></tr>
-        {% endfor %}
-      </table>
+    <div class="cards">
+      <div class="card">
+        <div class="kpi-label">Listings (after filters)</div>
+        <div class="kpi-value">{{ summary.n_listings }}</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Median price</div>
+        <div class="kpi-value">${{ '{:,.0f}'.format((summary.median_price or 0)) }}</div>
+        <div class="note">Computed via Postgres `percentile_cont(0.5)`.</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Median home size</div>
+        <div class="kpi-value">{{ '{:,.0f}'.format((summary.median_home_size or 0)) }} sqft</div>
+      </div>
     </div>
-    <div class="chart-container">
-      <canvas id="genreCountChart"></canvas>
-    </div>
-  </div>
 
-  <h2>2. Movies Per Year (with Cumulative Growth)</h2>
-  <div class="section">
-    <div class="table-container">
-      <table border="1" cellpadding="5">
-        <tr><th>Year</th><th>Count</th><th>Cumulative</th></tr>
-        {% for row in data_movies_year %}
-        <tr><td>{{ row.year }}</td><td>{{ row.total_count }}</td><td>{{ row.cumulative }}</td></tr>
-        {% else %}
-        <tr><td colspan="3">No data.</td></tr>
-        {% endfor %}
-      </table>
-    </div>
-    <div class="chart-container">
-      <canvas id="moviesYearChart"></canvas>
-    </div>
-  </div>
+    <div class="grid">
+      <div class="panel span-6">
+        <h2>1) Median price by city (top 15)</h2>
+        <canvas id="medianByCityChart"></canvas>
+        <div class="note">Cities with at least 20 listings in the filtered dataset.</div>
+      </div>
 
-  <h2>3. Top 10 Highest-Rated Movies (≥500k Votes)</h2>
-  <div class="section">
-    <div class="table-container">
-      <table border="1" cellpadding="5">
-        <tr><th>Title</th><th>Rating</th></tr>
-        {% for row in data_top_rated %}
-        <tr><td>{{ row.title }}</td><td>{{ row.rating }}</td></tr>
-        {% else %}
-        <tr><td colspan="2">No data.</td></tr>
-        {% endfor %}
-      </table>
-    </div>
-    <div class="chart-container">
-      <canvas id="topRatedChart"></canvas>
-    </div>
-  </div>
+      <div class="panel span-6">
+        <h2>2) Price distribution (bucketed)</h2>
+        <canvas id="priceHistogramChart"></canvas>
+      </div>
 
-  <h2>4. Distribution of Movie Ratings</h2>
-  <div class="section">
-    <div class="table-container">
-      <table border="1" cellpadding="5">
-        <tr><th>Bucket</th><th>Count</th><th>Percentage</th></tr>
-        {% for row in data_rating_dist %}
-        <tr><td>{{ row.bucket }}</td><td>{{ row.count }}</td><td>{{ row.percentage }}</td></tr>
-        {% else %}
-        <tr><td colspan="3">No data.</td></tr>
-        {% endfor %}
-      </table>
-    </div>
-    <div class="chart-container">
-      <canvas id="ratingDistChart"></canvas>
-    </div>
-  </div>
+      <div class="panel span-7">
+        <h2>3) Price vs. home size (random sample)</h2>
+        <canvas id="scatterPriceSizeChart"></canvas>
+        <div class="note">Sampled to keep the page fast.</div>
+      </div>
 
-  <h2>5. Top 10 Directors by Avg Rating (Min 10 Movies)</h2>
-  <div class="section">
-    <div class="table-container">
-      <table border="1" cellpadding="5">
-        <tr><th>Director</th><th>Avg Rating</th></tr>
-        {% for row in data_top_directors %}
-        <tr><td>{{ row.name }}</td><td>{{ row.avg_rating }}</td></tr>
-        {% else %}
-        <tr><td colspan="2">No data.</td></tr>
-        {% endfor %}
-      </table>
-    </div>
-    <div class="chart-container">
-      <canvas id="topDirectorsChart"></canvas>
+      <div class="panel span-5">
+        <h2>4) Price by number of bedrooms</h2>
+        <canvas id="priceByBedsChart"></canvas>
+      </div>
+
+      <div class="panel span-12">
+        <h2>5) Map: average price by ZIP (≥10 listings)</h2>
+        <div id="map"></div>
+        <div class="note">Each bubble is a ZIP centroid; size scales with listing count.</div>
+      </div>
+
+      <div class="panel span-12">
+        <h2>Data preview</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>City</th>
+              <th>ZIP</th>
+              <th>Listings</th>
+              <th>Avg price</th>
+              <th>Lat</th>
+              <th>Lng</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in zip_map[:12] %}
+              <tr>
+                <td>{{ filters.city or 'Multiple' }}</td>
+                <td>{{ row.zip }}</td>
+                <td>{{ row.n }}</td>
+                <td>${{ row.avg_price }}</td>
+                <td>{{ row.lat | round(4) }}</td>
+                <td>{{ row.lng | round(4) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6">No data (check filters).</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <script>
-    // 1. Genre Count - Doughnut with percentage
-    const labelsGenreCount = {{ data_genre_count | map(attribute='category') | list | tojson }};
-    const valuesGenreCount = {{ data_genre_count | map(attribute='percentage') | list | tojson }};
-    new Chart(document.getElementById('genreCountChart').getContext('2d'), {
-      type: 'doughnut',
-      data: { labels: labelsGenreCount, datasets: [{ label: 'Percentage', data: valuesGenreCount, backgroundColor: labelsGenreCount.map((_, i) => `hsl(${(i*55)%360}, 70%, 60%)`) }] },
-      options: { responsive: true }
-    });
+    Chart.defaults.color = "rgba(231, 236, 255, .9)";
+    Chart.defaults.borderColor = "rgba(255,255,255,.10)";
 
-    // 2. Movies Per Year - Bar for annual, line for cumulative
-    const labelsYear = {{ data_movies_year | map(attribute='year') | list | tojson }};
-    const valuesYear = {{ data_movies_year | map(attribute='total_count') | list | tojson }};
-    const valuesCumulative = {{ data_movies_year | map(attribute='cumulative') | list | tojson }};
-    new Chart(document.getElementById('moviesYearChart').getContext('2d'), {
+    const fmtUsd = (v) => {
+      try { return "$" + Math.round(v).toLocaleString("en-US"); } catch { return "$" + v; }
+    };
+
+    // 1) Median price by city
+    const cityLabels = {{ median_by_city | map(attribute='city') | list | tojson }};
+    const cityMedian = {{ median_by_city | map(attribute='median_price') | list | tojson }};
+    new Chart(document.getElementById('medianByCityChart'), {
       type: 'bar',
       data: {
-        labels: labelsYear,
-        datasets: [
-          { type: 'bar', label: 'Annual Count', data: valuesYear, backgroundColor: 'rgba(75, 192, 192, 0.6)', yAxisID: 'y', barThickness: 20, order: 1 },
-          { type: 'line', label: 'Cumulative', data: valuesCumulative, borderColor: 'rgb(255, 99, 132)', borderWidth: 3, tension: 0.2, pointRadius: 0, yAxisID: 'y', order: 2 }
-        ]
+        labels: cityLabels,
+        datasets: [{
+          label: 'Median price',
+          data: cityMedian,
+          backgroundColor: 'rgba(122, 162, 255, 0.55)',
+          borderColor: 'rgba(122, 162, 255, 0.95)',
+          borderWidth: 1
+        }]
       },
       options: {
         responsive: true,
+        plugins: { tooltip: { callbacks: { label: (ctx) => fmtUsd(ctx.parsed.y) } } },
         scales: {
-          x: {
-            ticks: {
-              autoSkip: true,
-              maxTicksLimit: 20
-            }
-          },
-          y: { min: 0, title: { display: true, text: 'Count / Cumulative' } }
+          x: { ticks: { maxRotation: 45, minRotation: 0 } },
+          y: { ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } }
         }
       }
     });
 
-    // 3. Top Rated - Bar
-    const labelsTopRated = {{ data_top_rated | map(attribute='title') | list | tojson }};
-    const valuesTopRated = {{ data_top_rated | map(attribute='rating') | list | tojson }};
-    new Chart(document.getElementById('topRatedChart').getContext('2d'), {
-      type: 'bar',
-      data: { labels: labelsTopRated, datasets: [{ label: 'Rating', data: valuesTopRated, backgroundColor: 'rgba(153, 102, 255, 0.6)' }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 10 } } }
+    // 2) Price histogram
+    const priceBuckets = {{ price_histogram | map(attribute='bucket') | list | tojson }};
+    const priceBucketPct = {{ price_histogram | map(attribute='pct') | list | tojson }};
+    new Chart(document.getElementById('priceHistogramChart'), {
+      type: 'doughnut',
+      data: {
+        labels: priceBuckets,
+        datasets: [{
+          label: '% of listings',
+          data: priceBucketPct,
+          backgroundColor: priceBuckets.map((_, i) => `hsla(${(i*55)%360}, 75%, 60%, .65)`),
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed}%` } } }
+      }
     });
 
-    // 4. Rating Distribution - Pie with percentage
-    const labelsRatingDist = {{ data_rating_dist | map(attribute='bucket') | list | tojson }};
-    const valuesRatingDist = {{ data_rating_dist | map(attribute='percentage') | list | tojson }};
-    new Chart(document.getElementById('ratingDistChart').getContext('2d'), {
-      type: 'pie',
-      data: { labels: labelsRatingDist, datasets: [{ label: 'Percentage', data: valuesRatingDist, backgroundColor: labelsRatingDist.map((_, i) => `hsl(${(i*72)%360}, 70%, 60%)`) }] },
-      options: { responsive: true }
+    // 3) Scatter price vs home size
+    const scatterPts = {{ scatter_price_vs_size | tojson }};
+    new Chart(document.getElementById('scatterPriceSizeChart'), {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Listing',
+          data: scatterPts.map(p => ({ x: Number(p.home_size), y: Number(p.price) })),
+          backgroundColor: 'rgba(99, 221, 190, 0.65)',
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { tooltip: { callbacks: {
+          label: (ctx) => `${ctx.parsed.x.toLocaleString()} sqft • ${fmtUsd(ctx.parsed.y)}`
+        }}},
+        scales: {
+          x: { title: { display: true, text: 'Home size (sqft)' } },
+          y: { title: { display: true, text: 'Price' }, ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } }
+        }
+      }
     });
 
-    // 5. Top Directors - Bar
-    const labelsDirectors = {{ data_top_directors | map(attribute='name') | list | tojson }};
-    const valuesDirectors = {{ data_top_directors | map(attribute='avg_rating') | list | tojson }};
-    new Chart(document.getElementById('topDirectorsChart').getContext('2d'), {
-      type: 'bar',
-      data: { labels: labelsDirectors, datasets: [{ label: 'Avg Rating', data: valuesDirectors, backgroundColor: 'rgba(255, 99, 132, 0.6)' }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 10 } } }
+    // 4) Price by beds (avg + median)
+    const bedsRows = {{ avg_price_by_beds | tojson }};
+    new Chart(document.getElementById('priceByBedsChart'), {
+      data: {
+        labels: bedsRows.map(r => String(r.beds)),
+        datasets: [
+          { type: 'bar', label: 'Avg price', data: bedsRows.map(r => r.avg_price), backgroundColor: 'rgba(255, 207, 82, 0.55)', borderColor: 'rgba(255, 207, 82, 0.9)', borderWidth: 1 },
+          { type: 'line', label: 'Median price', data: bedsRows.map(r => r.median_price), borderColor: 'rgba(231, 236, 255, 0.85)', borderWidth: 2, pointRadius: 0, tension: 0.2 }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmtUsd(ctx.parsed.y)}` } } },
+        scales: {
+          x: { title: { display: true, text: 'Bedrooms' } },
+          y: { ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } }
+        }
+      }
+    });
+
+    // 5) Leaflet map (avg price by ZIP)
+    const zipRows = {{ zip_map | tojson }};
+    const map = L.map('map', { zoomControl: false }).setView([37.6, -122.2], 9);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const counts = zipRows.map(r => r.n || 0);
+    const maxN = Math.max(1, ...counts);
+    zipRows.forEach(r => {
+      const radius = 6 + 18 * Math.sqrt((r.n || 0) / maxN);
+      const popup = `<b>ZIP ${r.zip}</b><br/>Listings: ${r.n}<br/>Avg price: ${fmtUsd(r.avg_price)}`;
+      L.circleMarker([r.lat, r.lng], {
+        radius,
+        weight: 1,
+        color: 'rgba(255,255,255,.55)',
+        fillColor: 'rgba(122, 162, 255, .55)',
+        fillOpacity: 0.85
+      }).addTo(map).bindPopup(popup);
     });
   </script>
 </body>

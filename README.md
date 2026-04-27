@@ -1,47 +1,53 @@
-# Movies IMDb Dataset Project
+# SF Bay Area House Prices Dashboard (Vercel + Postgres)
 
-This is a project that sets up a relational database for IMDb movie data, runs some SQL queries for analytics, and serves it all up in a simple Flask dashboard.
+Flask dashboard built on the SF Bay Area house prices dataset:
 
-## What This Does
-We pull in IMDb data (movies, genres, directors, etc.), store it in MySQL, and use SQL for insights like top-rated films or genre trends. The Flask app gives you a dashboard with charts and tables to visualize things.
+- Dataset: `data/sf_bayarea_house_prices.csv` (source: `https://raw.githubusercontent.com/csbfx/cs133/main/sf_bayarea_house_prices.csv`)
+- Database: **Vercel Postgres** (no MySQL)
+- Visualizations: **5+** charts (city medians, price distribution, scatter plots, bedroom pricing, ZIP-level map)
 
-## Understand The Data
+## Local setup
 
-[Open in Colab](https://colab.research.google.com/drive/1-R6gFW4jzN6tqRfCsbaHk23vLf59FMdU?usp=sharing)
+### 1) Create a virtual environment
 
-## Setup
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-### Database
-First, get the database going. Open MySQL and run the `db.sql` script. That'll create the database, tables, and load the data from the CSV files (assuming they're in `~/Desktop/movies_dashboard_22_24/data/`).
+### 2) Set `POSTGRES_URL_NON_POOLING`
 
-Second, run `queries.sql` script.run to verify that the database has been successfully loaded and create an index for faster data retrieval.
+This app reads one of:
 
-### Python Environment
-To run the Flask app:
+- `POSTGRES_URL_NON_POOLING` (preferred)
+- `POSTGRES_URL`
+- `DATABASE_URL`
 
-1. Create a virtual environment:  
-   ```bash
-   python3 -m venv .venv
-   ```
+### 3) Create schema + seed data
 
-2. Activate it:  
-   
-- On macOS or Linux:  
-     ```bash
-     source .venv/bin/activate
-     ```  
-   
-- On Windows:  
-     ```cmd
-     .venv\Scripts\activate.bat
-     ```
+Run the schema in `sql/schema.sql` against your Postgres database (Vercel Postgres or local).
 
-3. Install the dependencies:  
-   ```bash
-   pip install -r requirements.txt
-   ```
+Then seed:
 
-4. Start the app:  
-   ```bash
-   python3 app.py
-   ```
+```bash
+python3 scripts/seed_postgres.py
+```
+
+### 4) Run the app
+
+```bash
+python3 app.py
+```
+
+Open `http://localhost:5001`.
+
+## Deploy to Vercel (with Vercel Postgres)
+
+1. Create a Vercel project from this repo.
+2. In Vercel, add **Storage → Postgres** (Vercel Postgres).
+3. Ensure env vars are present (Vercel sets them automatically for Postgres).
+4. Run `sql/schema.sql` on the Vercel Postgres database.
+5. Seed the database using the Vercel-provided connection string (set `POSTGRES_URL_NON_POOLING` locally and run `python3 scripts/seed_postgres.py`).
+
+The serverless entrypoint is `api/index.py` and routing is configured in `vercel.json`.
