@@ -188,9 +188,9 @@
       </div>
 
       <div class="panel span-12">
-        <h2>5) Map: average price by ZIP</h2>
+        <h2>5) Map: median price by ZIP</h2>
         <div id="map"></div>
-        <div class="note">Each bubble is a ZIP centroid; size scales with listing count.</div>
+        <div class="note">Each bubble is a ZIP centroid; size scales with median price.</div>
       </div>
 
       <div class="panel span-12">
@@ -201,7 +201,7 @@
               <th>City</th>
               <th>ZIP</th>
               <th>Listings</th>
-              <th>Avg price</th>
+              <th>Median price</th>
               <th>Lat</th>
               <th>Lng</th>
             </tr>
@@ -212,7 +212,7 @@
                 <td>{{ filters.city or 'Multiple' }}</td>
                 <td>{{ row.zip }}</td>
                 <td>{{ row.n }}</td>
-                <td>${{ row.avg_price }}</td>
+                <td>${{ '{:,.0f}'.format((row.median_price or 0)) }}</td>
                 <td>{{ row.lat | round(4) }}</td>
                 <td>{{ row.lng | round(4) }}</td>
               </tr>
@@ -387,7 +387,7 @@
       }
     }); } catch (e) { console.error("priceByBedsChart failed", e); }
 
-    // 5) Leaflet map (avg price by ZIP)
+    // 5) Leaflet map (median price by ZIP)
     const zipRows = {{ zip_map | tojson }};
     const map = L.map('map', { zoomControl: false }).setView([37.6, -122.2], 9);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -396,11 +396,12 @@
       attribution: '&copy; OpenStreetMap'
     }).addTo(map);
 
-    const counts = zipRows.map(r => r.n || 0);
-    const maxN = Math.max(1, ...counts);
+    const medians = zipRows.map(r => Number(r.median_price) || 0);
+    const maxMedian = Math.max(1, ...medians);
     zipRows.forEach(r => {
-      const radius = 6 + 18 * Math.sqrt((r.n || 0) / maxN);
-      const popup = `<b>ZIP ${r.zip}</b><br/>Listings: ${r.n}<br/>Avg price: ${fmtUsd(r.avg_price)}`;
+      const m = Number(r.median_price) || 0;
+      const radius = 6 + 22 * Math.sqrt(m / maxMedian);
+      const popup = `<b>ZIP ${r.zip}</b><br/>Listings: ${r.n}<br/>Median price: ${fmtUsd(m)}`;
       L.circleMarker([r.lat, r.lng], {
         radius,
         weight: 1,

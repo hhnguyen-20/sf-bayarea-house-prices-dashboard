@@ -184,7 +184,7 @@ def create_app():
             SELECT
               zip,
               COUNT(*)::int AS n,
-              ROUND(AVG(price))::int AS avg_price,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY price) AS median_price,
               AVG(latitude) AS lat,
               AVG(longitude) AS lng
             FROM listings
