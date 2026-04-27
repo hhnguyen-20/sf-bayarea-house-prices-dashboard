@@ -129,9 +129,9 @@ def create_app():
               GROUP BY 1
             ),
             Total AS (
-              SELECT SUM(n)::float AS total FROM Buckets
+              SELECT SUM(n)::numeric AS total FROM Buckets
             )
-            SELECT bucket, n, ROUND((n / NULLIF(t.total, 0)) * 100, 2) AS pct
+            SELECT bucket, n, ROUND(((n::numeric / NULLIF(t.total, 0)) * 100), 2) AS pct
             FROM Buckets b CROSS JOIN Total t
             ORDER BY
               CASE bucket
