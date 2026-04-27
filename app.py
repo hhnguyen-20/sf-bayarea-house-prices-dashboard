@@ -104,7 +104,6 @@ def create_app():
             FROM listings
             WHERE {where} AND city IS NOT NULL AND price IS NOT NULL
             GROUP BY city
-            HAVING COUNT(*) >= 20
             ORDER BY median_price DESC
             LIMIT 15;
             """,

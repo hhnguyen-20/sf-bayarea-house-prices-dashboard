@@ -112,7 +112,6 @@
     <div class="header">
       <div>
         <h1>SF Bay Area House Prices Dashboard</h1>
-        <div class="sub">Backed by Vercel Postgres • Dataset: `sf_bayarea_house_prices.csv`</div>
       </div>
       <form class="filters" method="get" action="/">
         <div>
@@ -150,13 +149,12 @@
 
     <div class="cards">
       <div class="card">
-        <div class="kpi-label">Listings (after filters)</div>
+        <div class="kpi-label">Listings</div>
         <div class="kpi-value">{{ summary.n_listings }}</div>
       </div>
       <div class="card">
         <div class="kpi-label">Median price</div>
         <div class="kpi-value">${{ '{:,.0f}'.format((summary.median_price or 0)) }}</div>
-        <div class="note">Computed via Postgres `percentile_cont(0.5)`.</div>
       </div>
       <div class="card">
         <div class="kpi-label">Median home size</div>
@@ -168,11 +166,10 @@
       <div class="panel span-6">
         <h2>1) Median price by city (top 15)</h2>
         <canvas id="medianByCityChart"></canvas>
-        <div class="note">Cities with at least 20 listings in the filtered dataset.</div>
       </div>
 
       <div class="panel span-6">
-        <h2>2) Price distribution (bucketed)</h2>
+        <h2>2) Price distribution</h2>
         <canvas id="priceHistogramChart"></canvas>
       </div>
 
@@ -234,8 +231,10 @@
     };
 
     // 1) Median price by city
-    const cityLabels = {{ median_by_city | map(attribute='city') | list | tojson }};
-    const cityMedian = {{ median_by_city | map(attribute='median_price') | list | tojson }};
+    const allCityLabels = {{ median_by_city | map(attribute='city') | list | tojson }};
+    const allCityMedian = {{ median_by_city | map(attribute='median_price') | list | tojson }};
+    const cityLabels = allCityLabels.slice(0, 15);
+    const cityMedian = allCityMedian.slice(0, 15);
     new Chart(document.getElementById('medianByCityChart'), {
       type: 'bar',
       data: {
@@ -250,10 +249,11 @@
       },
       options: {
         responsive: true,
-        plugins: { tooltip: { callbacks: { label: (ctx) => fmtUsd(ctx.parsed.y) } } },
+        indexAxis: 'y',
+        plugins: { tooltip: { callbacks: { label: (ctx) => fmtUsd(ctx.parsed.x) } } },
         scales: {
-          x: { ticks: { maxRotation: 45, minRotation: 0 } },
-          y: { ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } }
+          x: { ticks: { callback: (v) => (v/1_000_000).toFixed(1) + "M" } },
+          y: { ticks: { maxRotation: 0, minRotation: 0 } }
         }
       }
     });
@@ -261,10 +261,11 @@
     // 2) Price histogram
     const priceBuckets = {{ price_histogram | map(attribute='bucket') | list | tojson }};
     const priceBucketPct = {{ price_histogram | map(attribute='pct') | list | tojson }};
+    const priceBucketsWithPct = priceBuckets.map((b, i) => `${b} (${priceBucketPct[i]}%)`);
     new Chart(document.getElementById('priceHistogramChart'), {
       type: 'doughnut',
       data: {
-        labels: priceBuckets,
+        labels: priceBucketsWithPct,
         datasets: [{
           label: '% of listings',
           data: priceBucketPct,
@@ -274,7 +275,17 @@
       },
       options: {
         responsive: true,
-        plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed}%` } } }
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const bucket = priceBuckets[ctx.dataIndex];
+                const pct = priceBucketPct[ctx.dataIndex];
+                return `${bucket}: ${pct}%`;
+              }
+            }
+          }
+        }
       }
     });
 
